@@ -1,0 +1,94 @@
+{
+  "name": "vscode-team-pivot",
+  "displayName": "Team Pivot",
+  "description": "VS Code client for team-pivot-web — browse threads, reply, and collaborate with AI assistants.",
+  "version": "0.0.1",
+  "publisher": "hashSTACS-Global",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hashSTACS-Global/vscode-team-pivot.git"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": ["Other"],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onCommand:pivot.open",
+    "onView:pivot.threads"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "pivot.open",
+        "title": "Pivot: Open Panel"
+      },
+      {
+        "command": "pivot.refresh",
+        "title": "Pivot: Refresh Threads",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "pivot.setToken",
+        "title": "Pivot: Set API Token"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "pivot",
+          "title": "Pivot",
+          "icon": "$(comment-discussion)"
+        }
+      ]
+    },
+    "views": {
+      "pivot": [
+        {
+          "id": "pivot.threads",
+          "name": "Threads"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "pivot.refresh",
+          "when": "view == pivot.threads",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Pivot",
+      "properties": {
+        "pivot.serverUrl": {
+          "type": "string",
+          "default": "http://localhost:8000",
+          "description": "Base URL of the team-pivot-web server."
+        },
+        "pivot.dataRepoUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Git URL of the data repository to mirror. Leave blank to fetch from server."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build:ext": "node esbuild.config.mjs",
+    "build:webview": "cd webview && npm run build",
+    "build": "npm run build:ext && npm run build:webview",
+    "watch:ext": "node esbuild.config.mjs --watch",
+    "watch:webview": "cd webview && npm run dev",
+    "typecheck": "tsc --noEmit && cd webview && tsc --noEmit",
+    "vscode:prepublish": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.90.0",
+    "esbuild": "^0.21.0",
+    "typescript": "^5.4.0"
+  }
+}

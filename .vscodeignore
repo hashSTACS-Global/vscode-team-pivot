@@ -1,0 +1,15 @@
+.vscode/**
+src/**
+webview/src/**
+webview/node_modules/**
+node_modules/**
+tsconfig.json
+webview/tsconfig.json
+webview/vite.config.ts
+esbuild.config.mjs
+**/*.map
+**/*.ts
+!dist/**
+!webview/dist/**
+memo.md
+to-team-pivot-web.md

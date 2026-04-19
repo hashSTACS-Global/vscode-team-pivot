@@ -1,0 +1,20 @@
+:root {
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  font-family: var(--vscode-font-family, system-ui, sans-serif);
+  font-size: var(--vscode-font-size, 13px);
+  color: var(--vscode-foreground, #ccc);
+  background: var(--vscode-editor-background, #1e1e1e);
+}
+
+.app {
+  padding: 16px;
+}
+
+.app h1 {
+  font-size: 18px;
+  margin: 0 0 8px 0;
+}
