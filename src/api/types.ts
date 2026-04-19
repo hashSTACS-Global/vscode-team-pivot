@@ -53,3 +53,42 @@ export interface Me {
   pinyin?: string;
   github_username?: string;
 }
+
+export interface Draft {
+  id: string;
+  type: "proposal" | "reply";
+  title: string | null;
+  category: string | null;
+  body_md: string;
+  thread_key: string | null;
+  mentions: { open_ids: string[]; comments: string } | null;
+  reply_to: string | null;
+  references: string[];
+  created_at: number;
+  updated_at: number;
+}
+
+export interface DraftsListResponse {
+  items: Draft[];
+}
+
+export interface CreateDraftBody {
+  type: "proposal" | "reply";
+  title?: string;
+  category?: string;
+  body_md?: string;
+  thread_key?: string;
+  mentions?: { open_ids: string[]; comments: string };
+  reply_to?: string;
+  references?: string[];
+}
+
+export interface UpdateDraftBody {
+  title?: string;
+  category?: string;
+  body_md?: string;
+  thread_key?: string;
+  mentions?: { open_ids: string[]; comments: string };
+  reply_to?: string;
+  references?: string[];
+}

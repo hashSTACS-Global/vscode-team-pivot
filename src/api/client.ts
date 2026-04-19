@@ -1,6 +1,15 @@
 import * as vscode from "vscode";
 import { clearToken, getToken, promptForToken } from "../auth/tokenStore";
-import type { ContactsResponse, Me, ThreadDetail, ThreadListResponse } from "./types";
+import type {
+  ContactsResponse,
+  CreateDraftBody,
+  Draft,
+  DraftsListResponse,
+  Me,
+  ThreadDetail,
+  ThreadListResponse,
+  UpdateDraftBody,
+} from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -115,6 +124,40 @@ export class ApiClient {
 
   me(): Promise<Me> {
     return this.request<Me>("/api/me");
+  }
+
+  listDrafts(): Promise<DraftsListResponse> {
+    return this.request<DraftsListResponse>("/api/drafts");
+  }
+
+  createDraft(body: CreateDraftBody): Promise<Draft> {
+    return this.request<Draft>("/api/drafts", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  }
+
+  getDraft(id: string): Promise<Draft> {
+    return this.request<Draft>(`/api/drafts/${encodeURIComponent(id)}`);
+  }
+
+  patchDraft(id: string, body: UpdateDraftBody): Promise<Draft> {
+    return this.request<Draft>(`/api/drafts/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  }
+
+  publishDraft(id: string): Promise<unknown> {
+    return this.request(`/api/drafts/${encodeURIComponent(id)}/publish`, {
+      method: "POST",
+    });
+  }
+
+  deleteDraft(id: string): Promise<unknown> {
+    return this.request(`/api/drafts/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
   }
 
   replyToThread(

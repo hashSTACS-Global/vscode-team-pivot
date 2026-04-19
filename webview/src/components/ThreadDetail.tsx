@@ -2,9 +2,27 @@ import React from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Post, ThreadDetail } from "../../../src/api/types";
+import type { DraftSnapshot } from "../../../src/webview/protocol";
 import { StatusBadge } from "./StatusBadge";
+import { DraftCard } from "./DraftCard";
 
-export function ThreadDetailView({ detail }: { detail: ThreadDetail }): JSX.Element {
+interface Props {
+  detail: ThreadDetail;
+  draft: DraftSnapshot | undefined;
+  onStartReply: () => void;
+  onReviseDraft: (instruction: string) => void;
+  onPublishDraft: (draftId: string) => void;
+  onDiscardDraft: (draftId: string) => void;
+}
+
+export function ThreadDetailView({
+  detail,
+  draft,
+  onStartReply,
+  onReviseDraft,
+  onPublishDraft,
+  onDiscardDraft,
+}: Props): JSX.Element {
   return (
     <div className="thread">
       <header className="thread-header">
@@ -26,6 +44,25 @@ export function ThreadDetailView({ detail }: { detail: ThreadDetail }): JSX.Elem
         {detail.posts.map((p) => (
           <PostCard key={p.filename} post={p} />
         ))}
+      </div>
+      <div className="reply-zone">
+        {draft ? (
+          <DraftCard
+            snapshot={draft}
+            onCopyReplyPrompt={onStartReply}
+            onRevise={onReviseDraft}
+            onPublish={() => onPublishDraft(draft.draft.id)}
+            onDiscard={() => onDiscardDraft(draft.draft.id)}
+          />
+        ) : (
+          <button
+            type="button"
+            className="reply-start primary"
+            onClick={onStartReply}
+          >
+            📋 回复此贴（生成 AI 提示词）
+          </button>
+        )}
       </div>
     </div>
   );

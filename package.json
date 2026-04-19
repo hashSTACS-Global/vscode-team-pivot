@@ -69,6 +69,11 @@
           "type": "string",
           "default": "",
           "description": "Git URL of the data repository to mirror. Leave blank to fetch from server."
+        },
+        "pivot.draftsDir": {
+          "type": "string",
+          "default": "",
+          "description": "Directory where reply drafts are written for AI assistants to read/edit. Empty = ~/.pivot-drafts. Paths starting with ~ are expanded to the user's home."
         }
       }
     }
