@@ -11,5 +11,5 @@
     "noEmit": true,
     "isolatedModules": true
   },
-  "include": ["src"]
+  "include": ["src", "../src/api/types.ts", "../src/webview/protocol.ts"]
 }

@@ -11,7 +11,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.window.registerTreeDataProvider("pivot.threads", treeProvider),
   );
 
-  const webviewHost = new WebviewHost(context);
+  const webviewHost = new WebviewHost(context, api);
 
   context.subscriptions.push(
     vscode.commands.registerCommand("pivot.open", () => webviewHost.reveal()),
@@ -22,12 +22,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }),
     vscode.commands.registerCommand(
       "pivot.openThread",
-      (category: string, slug: string) => {
-        webviewHost.reveal();
-        void vscode.window.showInformationMessage(
-          `Pivot: opened ${category}/${slug} (detail rendering coming next).`,
-        );
-      },
+      (category: string, slug: string) => webviewHost.showThread(category, slug),
     ),
   );
 
