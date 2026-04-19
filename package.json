@@ -14,10 +14,7 @@
   },
   "categories": ["Other"],
   "main": "./dist/extension.js",
-  "activationEvents": [
-    "onCommand:pivot.open",
-    "onView:pivot.threads"
-  ],
+  "activationEvents": [],
   "contributes": {
     "commands": [
       {
@@ -32,6 +29,11 @@
       {
         "command": "pivot.setToken",
         "title": "Pivot: Set API Token"
+      },
+      {
+        "command": "pivot.openThread",
+        "title": "Pivot: Open Thread (internal)",
+        "enablement": "false"
       }
     ],
     "viewsContainers": {
