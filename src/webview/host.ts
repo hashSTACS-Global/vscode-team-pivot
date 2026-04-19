@@ -38,7 +38,7 @@ export class WebviewHost {
 
   reveal(): void {
     if (this.panel) {
-      this.panel.reveal(vscode.ViewColumn.Beside);
+      this.panel.reveal(this.panel.viewColumn, true);
       return;
     }
     this.panel = this.create();
@@ -50,7 +50,7 @@ export class WebviewHost {
       this.panel = this.create();
       return;
     }
-    this.panel.reveal(vscode.ViewColumn.Beside);
+    this.panel.reveal(this.panel.viewColumn, true);
     void this.loadPending();
   }
 
