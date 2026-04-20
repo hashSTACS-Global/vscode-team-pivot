@@ -1,8 +1,11 @@
 import * as vscode from "vscode";
 import { clearToken, getToken, promptForToken } from "../auth/tokenStore";
 import type {
+  CategoryEntry,
   Contact,
   ContactsResponse,
+  CreateThreadResponse,
+  ListCategoriesResponse,
   MentionBlock,
   Me,
   ThreadDetail,
@@ -190,4 +193,22 @@ export class ApiClient {
       { method: "POST", body: JSON.stringify(body) },
     );
   }
+
+  createThread(body: {
+    category: string;
+    title: string;
+    body: string;
+    mentions?: MentionBlock;
+  }): Promise<CreateThreadResponse> {
+    return this.request<CreateThreadResponse>("/api/threads", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  }
+
+  listCategories(): Promise<ListCategoriesResponse> {
+    return this.request<ListCategoriesResponse>("/api/categories");
+  }
 }
+
+export type { CategoryEntry };

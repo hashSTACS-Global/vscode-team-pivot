@@ -100,6 +100,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       "pivot.openThread",
       (category: string, slug: string) => webviewHost.showThread(category, slug),
     ),
+    vscode.commands.registerCommand("pivot.newThread", () =>
+      webviewHost.startNewThread(),
+    ),
+    vscode.commands.registerCommand(
+      "pivot.openNewThreadDraft",
+      (draftId: string) => webviewHost.openNewThreadComposer(draftId),
+    ),
     vscode.commands.registerCommand("pivot.discardDraftFromTree", async (node?: { data?: { draft?: { id?: string } } } | string) => {
       const draftId =
         typeof node === "string" ? node : node?.data?.draft?.id;

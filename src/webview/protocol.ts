@@ -7,6 +7,11 @@ export interface DraftSnapshot {
   file_path: string;
   reply_to?: string | null;
   references?: string[];
+  // 新增：区分回帖草稿 vs 新帖草稿（向后兼容：旧草稿默认 kind = "reply"）
+  kind?: "reply" | "new-thread";
+  // 仅 new-thread 草稿使用
+  title?: string;
+  category?: string;
 }
 
 export interface SettingsSnapshot {
@@ -30,7 +35,8 @@ export type ExtensionToWebview =
   | { type: "contacts-result"; target_filename: string; items: Contact[] }
   | { type: "mention-submitted"; target_filename: string }
   | { type: "settings-data"; settings: SettingsSnapshot }
-  | { type: "test-connection-result"; ok: boolean; message: string };
+  | { type: "test-connection-result"; ok: boolean; message: string }
+  | { type: "show-new-thread-composer"; draft: DraftSnapshot };
 
 export type WebviewToExtension =
   | { type: "ready" }
@@ -52,4 +58,6 @@ export type WebviewToExtension =
   | { type: "submit-mention"; category: string; slug: string; target_filename: string; mentions: MentionBlock }
   | { type: "open-draft-file"; draft_id: string }
   | { type: "publish-draft"; draft_id: string }
-  | { type: "discard-draft"; draft_id: string };
+  | { type: "discard-draft"; draft_id: string }
+  | { type: "publish-new-thread-draft"; draft_id: string }
+  | { type: "discard-new-thread-draft"; draft_id: string };
