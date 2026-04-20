@@ -1,14 +1,13 @@
 import * as vscode from "vscode";
 import { clearToken, getToken, promptForToken } from "../auth/tokenStore";
 import type {
+  Contact,
   ContactsResponse,
-  CreateDraftBody,
-  Draft,
-  DraftsListResponse,
+  MentionBlock,
   Me,
   ThreadDetail,
   ThreadListResponse,
-  UpdateDraftBody,
+  WorkspaceMirrorInfo,
 } from "./types";
 
 export class ApiError extends Error {
@@ -28,7 +27,7 @@ export class ApiClient {
   private baseUrl(): string {
     const url = vscode.workspace
       .getConfiguration("pivot")
-      .get<string>("serverUrl", "http://localhost:8000");
+      .get<string>("serverUrl", "https://pivot.enclaws.ai");
     return url.replace(/\/+$/, "");
   }
 
@@ -118,46 +117,62 @@ export class ApiClient {
     );
   }
 
+  setThreadFavorite(
+    category: string,
+    slug: string,
+    favorite: boolean,
+  ): Promise<{ ok: true; thread_key: string; favorite: boolean }> {
+    return this.request<{ ok: true; thread_key: string; favorite: boolean }>(
+      `/api/threads/${encodeURIComponent(category)}/${encodeURIComponent(slug)}/favorite`,
+      {
+        method: "POST",
+        body: JSON.stringify({ favorite }),
+      },
+    );
+  }
+
+  markThreadRead(category: string, slug: string): Promise<{ ok: boolean; last_read_post_filename?: string }> {
+    return this.request<{ ok: boolean; last_read_post_filename?: string }>(
+      `/api/threads/${encodeURIComponent(category)}/${encodeURIComponent(slug)}/read`,
+      { method: "POST" },
+    );
+  }
+
   listContacts(): Promise<ContactsResponse> {
     return this.request<ContactsResponse>("/api/contacts");
+  }
+
+  searchContacts(q: string, limit: number = 20): Promise<{ items: Contact[]; total: number }> {
+    const params = new URLSearchParams();
+    params.set("q", q);
+    params.set("limit", String(limit));
+    return this.request<{ items: Contact[]; total: number }>(`/api/contacts?${params.toString()}`);
+  }
+
+  addMention(
+    category: string,
+    slug: string,
+    targetFilename: string,
+    mentions: MentionBlock,
+  ): Promise<unknown> {
+    return this.request(
+      `/api/threads/${encodeURIComponent(category)}/${encodeURIComponent(slug)}/mentions`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          target_filename: targetFilename,
+          mentions,
+        }),
+      },
+    );
   }
 
   me(): Promise<Me> {
     return this.request<Me>("/api/me");
   }
 
-  listDrafts(): Promise<DraftsListResponse> {
-    return this.request<DraftsListResponse>("/api/drafts");
-  }
-
-  createDraft(body: CreateDraftBody): Promise<Draft> {
-    return this.request<Draft>("/api/drafts", {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
-  }
-
-  getDraft(id: string): Promise<Draft> {
-    return this.request<Draft>(`/api/drafts/${encodeURIComponent(id)}`);
-  }
-
-  patchDraft(id: string, body: UpdateDraftBody): Promise<Draft> {
-    return this.request<Draft>(`/api/drafts/${encodeURIComponent(id)}`, {
-      method: "PATCH",
-      body: JSON.stringify(body),
-    });
-  }
-
-  publishDraft(id: string): Promise<unknown> {
-    return this.request(`/api/drafts/${encodeURIComponent(id)}/publish`, {
-      method: "POST",
-    });
-  }
-
-  deleteDraft(id: string): Promise<unknown> {
-    return this.request(`/api/drafts/${encodeURIComponent(id)}`, {
-      method: "DELETE",
-    });
+  getWorkspaceMirror(): Promise<WorkspaceMirrorInfo> {
+    return this.request<WorkspaceMirrorInfo>("/api/workspace/mirror");
   }
 
   replyToThread(
@@ -165,7 +180,7 @@ export class ApiClient {
     slug: string,
     body: {
       body: string;
-      mentions?: { open_ids: string[]; comments: string };
+      mentions?: MentionBlock;
       reply_to?: string;
       references?: string[];
     },

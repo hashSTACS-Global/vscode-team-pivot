@@ -1,0 +1,8 @@
+{
+  "schema": 1,
+  "latest": "0.0.1",
+  "minimum_supported": "0.0.1",
+  "message": "当前插件已是发布基线版本，可以正常使用。后续如果需要强制升级，请同时提高 latest 和 minimum_supported，并更新下载地址。",
+  "download_url": "https://github.com/hashSTACS-Global/vscode-team-pivot/releases/download/v0.0.1/vscode-team-pivot-0.0.1.vsix",
+  "published_at": "2026-04-20T00:00:00Z"
+}

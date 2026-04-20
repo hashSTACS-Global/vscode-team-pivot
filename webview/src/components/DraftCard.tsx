@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { DraftSnapshot } from "../../../src/webview/protocol";
@@ -6,7 +6,7 @@ import type { DraftSnapshot } from "../../../src/webview/protocol";
 interface Props {
   snapshot: DraftSnapshot;
   onCopyReplyPrompt: () => void;
-  onRevise: (instruction: string) => void;
+  onOpenFile: () => void;
   onPublish: () => void;
   onDiscard: () => void;
 }
@@ -14,12 +14,10 @@ interface Props {
 export function DraftCard({
   snapshot,
   onCopyReplyPrompt,
-  onRevise,
+  onOpenFile,
   onPublish,
   onDiscard,
 }: Props): JSX.Element {
-  const [revising, setRevising] = useState(false);
-  const [instruction, setInstruction] = useState("");
   const body = snapshot.body_md.trim();
   const hasBody = body.length > 0;
 
@@ -40,16 +38,14 @@ export function DraftCard({
           草稿是空的。粘贴提示词到你的 AI 聊天窗口，让它写入文件；或者直接在本地编辑器里写。
         </div>
       )}
+      <div className="draft-file-row">
+        <button type="button" className="draft-file-link" onClick={onOpenFile}>
+          在 VS Code 中打开草稿文件
+        </button>
+      </div>
       <footer className="draft-actions">
         <button type="button" onClick={onCopyReplyPrompt}>
-          📋 复制起草提示词
-        </button>
-        <button
-          type="button"
-          onClick={() => setRevising((v) => !v)}
-          disabled={!hasBody}
-        >
-          ✏️ 要 AI 再改改
+          📋 复制保存草稿提示词
         </button>
         <button
           type="button"
@@ -62,41 +58,11 @@ export function DraftCard({
         <button
           type="button"
           className="danger"
-          onClick={() => {
-            if (confirm("丢弃这个草稿？")) onDiscard();
-          }}
+          onClick={onDiscard}
         >
           丢弃
         </button>
       </footer>
-      {revising && (
-        <div className="revise-row">
-          <input
-            type="text"
-            value={instruction}
-            placeholder="例如：更简短，直接给出结论"
-            onChange={(e) => setInstruction(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                onRevise(instruction);
-                setInstruction("");
-                setRevising(false);
-              }
-            }}
-            autoFocus
-          />
-          <button
-            type="button"
-            onClick={() => {
-              onRevise(instruction);
-              setInstruction("");
-              setRevising(false);
-            }}
-          >
-            复制提示词
-          </button>
-        </div>
-      )}
     </section>
   );
 }

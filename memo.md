@@ -39,7 +39,7 @@
 │  └─────────────────┘  └─────────────────────────┘  └─────────────┘│
 │                                                                    │
 │  Extension Host (Node/TS)                                          │
-│  ├─ GitMirror    ── clone + pull 只读镜像到 globalStorage          │
+│  ├─ GitMirror    ── clone + pull 只读镜像到用户配置目录            │
 │  ├─ PostReader   ── 解析 md+frontmatter / index.yaml (TS 版)       │
 │  ├─ ApiClient    ── 调 team-pivot-web REST API                     │
 │  ├─ AuthProvider ── token 存 SecretStorage                         │
@@ -83,7 +83,12 @@
 
 **本地镜像永远只读**。插件绝不 commit/push，完全规避与服务端两阶段原子写竞争。
 
-镜像位置：`<globalStorage>/pivot-mirror/<repo-name>/`
+镜像位置：用户通过插件配置 `pivot.mirrorDir`；未配置时默认回退到 `<globalStorage>/pivot-mirror/<repo-name>/`
+
+镜像 bootstrap 信息来源：
+1. 本地只配置镜像目录
+2. 远端仓库地址、branch、只读 Git 凭证走 `GET /api/workspace/mirror`
+3. 插件本地 clone / pull，但绝不 commit / push
 
 pull 触发条件：
 1. 扩展激活时（首次 clone 或增量 pull）
@@ -210,6 +215,7 @@ vscode-team-pivot/
 | GET | `/api/contacts` | 联系人列表（@mention） |
 | GET/POST/PATCH | `/api/drafts` | 草稿 CRUD（可选复用） |
 | GET | `/api/me` | 当前用户 |
+| GET | `/api/workspace/mirror` | 本地只读镜像 bootstrap（repo_url / branch / 只读 Git 凭证） |
 
 ⚠️ 这些当前都用 cookie session 鉴权，MVP 开工前服务端要加 Bearer 支持。
 

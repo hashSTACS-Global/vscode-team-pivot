@@ -2,8 +2,10 @@ import React, { useCallback, useEffect, useState } from "react";
 import type {
   DraftSnapshot,
   ExtensionToWebview,
+  SettingsSnapshot,
 } from "../../src/webview/protocol";
-import type { ThreadDetail } from "../../src/api/types";
+import type { Contact, MentionBlock, ThreadDetail } from "../../src/api/types";
+import { SettingsView } from "./components/SettingsView";
 import { ThreadDetailView } from "./components/ThreadDetail";
 import { vscode } from "./vscode";
 
@@ -15,27 +17,48 @@ type ViewState =
 
 export function App(): JSX.Element {
   const [state, setState] = useState<ViewState>({ kind: "idle" });
+  const [activeTab, setActiveTab] = useState<"discussion" | "settings">("discussion");
+  const [settings, setSettings] = useState<SettingsSnapshot | null>(null);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [contactResults, setContactResults] = useState<Record<string, Contact[]>>({});
+  const [lastMentionSubmitted, setLastMentionSubmitted] = useState<string | null>(null);
 
   useEffect(() => {
     const listener = (ev: MessageEvent<ExtensionToWebview>) => {
       const msg = ev.data;
       switch (msg.type) {
         case "show-idle":
+          setActiveTab("discussion");
           setState({ kind: "idle" });
           return;
+        case "show-settings":
+          setActiveTab("settings");
+          return;
         case "show-loading":
+          setActiveTab("discussion");
           setState({ kind: "loading", category: msg.category, slug: msg.slug });
           return;
         case "show-detail":
+          setActiveTab("discussion");
           setState({ kind: "detail", detail: msg.detail, draft: msg.draft });
           return;
         case "show-error":
+          setActiveTab("discussion");
           setState({ kind: "error", message: msg.message });
+          return;
+        case "settings-data":
+          setSettings(msg.settings);
+          if (msg.settings.update.blocked) {
+            setActiveTab("settings");
+          }
+          return;
+        case "test-connection-result":
+          setTestResult({ ok: msg.ok, message: msg.message });
           return;
         case "draft-updated":
           setState((prev) => {
             if (prev.kind !== "detail" || !prev.draft) return prev;
-            if (prev.draft.draft.id !== msg.draft_id) return prev;
+            if (prev.draft.id !== msg.draft_id) return prev;
             return {
               ...prev,
               draft: { ...prev.draft, body_md: msg.body_md },
@@ -45,37 +68,77 @@ export function App(): JSX.Element {
         case "draft-published":
           setState((prev) => {
             if (prev.kind !== "detail") return prev;
-            if (prev.draft?.draft.id !== msg.draft_id) return prev;
+            if (prev.draft?.id !== msg.draft_id) return prev;
             return { ...prev, draft: undefined };
           });
+          return;
+        case "contacts-result":
+          setContactResults((prev) => ({ ...prev, [msg.target_filename]: msg.items }));
+          return;
+        case "mention-submitted":
+          setLastMentionSubmitted(msg.target_filename);
           return;
       }
     };
     window.addEventListener("message", listener);
     vscode().postMessage({ type: "ready" });
+    vscode().postMessage({ type: "request-settings" });
     return () => window.removeEventListener("message", listener);
   }, []);
 
-  const onStartReply = useCallback(() => {
+  const onStartDiscussion = useCallback((reply_to?: string | null) => {
     if (state.kind !== "detail") return;
     vscode().postMessage({
-      type: "request-reply-draft",
+      type: "request-discussion-prompt",
+      category: state.detail.meta.category,
+      slug: state.detail.meta.slug,
+      reply_to: reply_to ?? null,
+      references: [],
+    });
+  }, [state]);
+
+  const onToggleFavorite = useCallback(() => {
+    if (state.kind !== "detail") return;
+    vscode().postMessage({
+      type: "toggle-favorite",
       category: state.detail.meta.category,
       slug: state.detail.meta.slug,
     });
   }, [state]);
 
-  const onReviseDraft = useCallback(
-    (instruction: string) => {
-      if (state.kind !== "detail" || !state.draft) return;
+  const onStartReply = useCallback((reply_to?: string | null) => {
+    if (state.kind !== "detail") return;
+    vscode().postMessage({
+      type: "request-reply-draft",
+      category: state.detail.meta.category,
+      slug: state.detail.meta.slug,
+      reply_to: reply_to ?? null,
+      references: [],
+    });
+  }, [state]);
+
+  const onSearchContacts = useCallback((target_filename: string, query: string) => {
+    vscode().postMessage({ type: "search-contacts", target_filename, query });
+  }, []);
+
+  const onSubmitMention = useCallback(
+    (target_filename: string, mentions: MentionBlock) => {
+      if (state.kind !== "detail") return;
+      setLastMentionSubmitted(null);
       vscode().postMessage({
-        type: "regenerate-draft",
-        draft_id: state.draft.draft.id,
-        instruction,
+        type: "submit-mention",
+        category: state.detail.meta.category,
+        slug: state.detail.meta.slug,
+        target_filename,
+        mentions,
       });
     },
     [state],
   );
+
+  const onOpenDraftFile = useCallback((draft_id: string) => {
+    vscode().postMessage({ type: "open-draft-file", draft_id });
+  }, []);
 
   const onPublishDraft = useCallback((draft_id: string) => {
     vscode().postMessage({ type: "publish-draft", draft_id });
@@ -85,38 +148,108 @@ export function App(): JSX.Element {
     vscode().postMessage({ type: "discard-draft", draft_id });
   }, []);
 
+  const onSaveSettings = useCallback(
+    (next: Partial<Omit<SettingsSnapshot, "tokenConfigured">>) => {
+      vscode().postMessage({ type: "save-settings", settings: next });
+    },
+    [],
+  );
+
+  const onSaveToken = useCallback((token: string) => {
+    vscode().postMessage({ type: "save-token", token });
+  }, []);
+
+  const onClearToken = useCallback(() => {
+    vscode().postMessage({ type: "clear-token" });
+  }, []);
+
+  const onPickDirectory = useCallback((target: "mirrorDir" | "draftsDir") => {
+    vscode().postMessage({ type: "pick-directory", target });
+  }, []);
+
+  const onTestConnection = useCallback(() => {
+    setTestResult(null);
+    vscode().postMessage({ type: "test-connection" });
+  }, []);
+
+  const onSyncMirror = useCallback(() => {
+    vscode().postMessage({ type: "sync-mirror" });
+  }, []);
+
   return (
     <div className="app">
-      {state.kind === "idle" && (
-        <div className="idle">
-          <h2>Pivot</h2>
-          <p className="muted">
-            Select a thread from the Pivot sidebar to view its discussion.
-          </p>
+      <header className="page-toolbar">
+        <div className="page-tabs">
+          <button
+            type="button"
+            className={activeTab === "discussion" ? "tab-button active" : "tab-button"}
+            onClick={() => setActiveTab("discussion")}
+            disabled={Boolean(settings?.update.blocked)}
+          >
+            讨论
+          </button>
+          <button
+            type="button"
+            className={activeTab === "settings" ? "tab-button active" : "tab-button"}
+            onClick={() => setActiveTab("settings")}
+          >
+            设置
+          </button>
         </div>
-      )}
-      {state.kind === "loading" && (
-        <div className="loading">
-          <p className="muted">
-            Loading {state.category}/{state.slug}…
-          </p>
-        </div>
-      )}
-      {state.kind === "detail" && (
-        <ThreadDetailView
-          detail={state.detail}
-          draft={state.draft}
-          onStartReply={onStartReply}
-          onReviseDraft={onReviseDraft}
-          onPublishDraft={onPublishDraft}
-          onDiscardDraft={onDiscardDraft}
+      </header>
+      {activeTab === "settings" ? (
+        <SettingsView
+          settings={settings}
+          testResult={testResult}
+          onSave={onSaveSettings}
+          onSaveToken={onSaveToken}
+          onClearToken={onClearToken}
+          onPickDirectory={onPickDirectory}
+          onTestConnection={onTestConnection}
+          onCheckUpdates={() => vscode().postMessage({ type: "check-updates" })}
+          onInstallUpdate={() => vscode().postMessage({ type: "install-update" })}
+          onSyncMirror={onSyncMirror}
         />
-      )}
-      {state.kind === "error" && (
-        <div className="error">
-          <h2>Error</h2>
-          <pre>{state.message}</pre>
-        </div>
+      ) : (
+        <>
+          {state.kind === "idle" && (
+            <div className="idle">
+              <h2>Pivot</h2>
+              <p className="muted">
+                Select a thread from the Pivot sidebar to view its discussion.
+              </p>
+            </div>
+          )}
+          {state.kind === "loading" && (
+            <div className="loading">
+              <p className="muted">
+                Loading {state.category}/{state.slug}…
+              </p>
+            </div>
+          )}
+          {state.kind === "detail" && (
+          <ThreadDetailView
+            detail={state.detail}
+            draft={state.draft}
+            onToggleFavorite={onToggleFavorite}
+            onStartDiscussion={onStartDiscussion}
+            onStartReply={onStartReply}
+            onSearchContacts={onSearchContacts}
+            onSubmitMention={onSubmitMention}
+            contactResults={contactResults}
+            lastMentionSubmitted={lastMentionSubmitted}
+            onOpenDraftFile={onOpenDraftFile}
+            onPublishDraft={onPublishDraft}
+            onDiscardDraft={onDiscardDraft}
+            />
+          )}
+          {state.kind === "error" && (
+            <div className="error">
+              <h2>Error</h2>
+              <pre>{state.message}</pre>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

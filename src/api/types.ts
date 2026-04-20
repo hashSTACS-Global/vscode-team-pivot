@@ -8,6 +8,7 @@ export interface ThreadMeta {
   last_updated: string;
   post_count: number;
   unread_count: number;
+  favorite: boolean;
 }
 
 export interface ThreadListResponse {
@@ -19,6 +20,11 @@ export interface PostMention {
   author_display?: string;
   comments?: string;
   open_ids?: string[];
+}
+
+export interface MentionBlock {
+  open_ids: string[];
+  comments: string;
 }
 
 export interface Post {
@@ -54,41 +60,33 @@ export interface Me {
   github_username?: string;
 }
 
-export interface Draft {
-  id: string;
-  type: "proposal" | "reply";
-  title: string | null;
-  category: string | null;
-  body_md: string;
-  thread_key: string | null;
-  mentions: { open_ids: string[]; comments: string } | null;
-  reply_to: string | null;
-  references: string[];
-  created_at: number;
-  updated_at: number;
+export interface WorkspaceMirrorInfo {
+  repo_url: string;
+  visibility: "public" | "private" | string;
+  branch: string;
+  repo_name: string;
+  provider: "github" | string;
+  readonly: boolean;
+  git_username: string | null;
+  git_token: string | null;
+  head: string | null;
 }
 
-export interface DraftsListResponse {
-  items: Draft[];
-}
-
-export interface CreateDraftBody {
-  type: "proposal" | "reply";
-  title?: string;
-  category?: string;
-  body_md?: string;
-  thread_key?: string;
-  mentions?: { open_ids: string[]; comments: string };
-  reply_to?: string;
-  references?: string[];
-}
-
-export interface UpdateDraftBody {
-  title?: string;
-  category?: string;
-  body_md?: string;
-  thread_key?: string;
-  mentions?: { open_ids: string[]; comments: string };
-  reply_to?: string;
-  references?: string[];
+export interface UpdateSnapshot {
+  state:
+    | "unknown"
+    | "not_configured"
+    | "checking"
+    | "up_to_date"
+    | "update_available"
+    | "upgrade_required"
+    | "check_failed";
+  blocked: boolean;
+  currentVersion: string;
+  latestVersion?: string;
+  minimumSupported?: string;
+  message: string;
+  downloadUrl?: string;
+  sha256?: string;
+  checkedAt?: string;
 }
