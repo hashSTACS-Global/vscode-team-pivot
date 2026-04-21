@@ -1045,3 +1045,70 @@ PIVOT_TOKEN=pvt_xxx node scripts/test-create-thread.mjs
 - §8 MVP 范围：把"新建 thread"从"暂缓"挪到"做"；`@mention 自动补全 UI` 继续标"暂缓"，脚注说明"新帖 mentions 由 AI 填 frontmatter"
 - §9 协议契约表：新增 `POST /api/threads` 和 `GET /api/categories` 两行
 - 如果 `promptBuilder` 的联系人注入体验需要调优，在 §6 附近加一句说明
+
+---
+
+## 16. 上线后迭代（2026-04-21）
+
+本节记录初始实施完成后，在本地联调验收阶段发现并修复的 UX 问题，以及遗留的后续项。
+
+### 16.1 验收时发现并已修复的问题
+
+| # | 问题 | 修复 | 相关提交 |
+|---|---|---|---|
+| 1 | 空态文案「草稿是空的…」让新用户误以为出错 | 改为三段式正向引导："✅ 提示词已复制" → "下一步（二选一）" → "写完后发布 / 随时切走" | [NewThreadComposer.tsx](webview/src/components/NewThreadComposer.tsx) |
+| 2 | `.draft-empty` 原本 `text-align: center`，加入段落 / 列表后居中排版错乱 | 改 `text-align: left`，为 `p` / `ul` / `li` 配置合适的间距与 20px 缩进 | [webview/src/index.css](webview/src/index.css) |
+| 3 | `startNewThread` 创建完草稿后，侧边栏「草稿」分组不会自动刷新，必须手动点刷新按钮 | 在方法末尾补一行 `void vscode.commands.executeCommand("pivot.refresh")`，与顶栏手动刷新按钮逻辑一致 | [host.ts:startNewThread](src/webview/host.ts) |
+| 4 | 用户若未及时把剪贴板里的提示词粘给 AI，剪贴板被其他内容覆盖后无法再拿到提示词，只能丢弃草稿重建 | 在空态文案首句后追加「重新复制」按钮，协议新增 `recopy-new-thread-prompt` 消息；点击后重拉最新联系人、重建提示词再塞剪贴板 | [protocol.ts](src/webview/protocol.ts) / [host.ts:recopyNewThreadPrompt](src/webview/host.ts) / [NewThreadComposer.tsx](webview/src/components/NewThreadComposer.tsx) / [App.tsx](webview/src/App.tsx) |
+| 5 | 发布 / 丢弃时后端调用没有任何可视反馈，用户不知道是否在进行中 | `publishNewThreadDraft` / `publishDraft` / `discardNewThreadDraft` 三处改用 `vscode.window.withProgress`，分阶段显示"发布到服务端…" → "同步本地镜像…" | [host.ts](src/webview/host.ts) |
+
+### 16.2 端到端验收结论
+
+| 环节 | 状态 |
+|---|---|
+| 新帖入口 `＋` / 命令面板 `Pivot: New Thread` | ✅ |
+| 标题校验 + 分类 QuickPick + 新建分类二次确认 | ✅ |
+| 草稿文件落盘（`~/.pivot-drafts/new-threads/{uuid}.md|.pivot-meta.json`）+ 剪贴板装提示词 | ✅ |
+| 「重新复制」按钮 | ✅ |
+| 侧边栏「草稿」分组自动刷新（含 new-thread / reply 区分显示） | ✅（仅 F5 调试路径验证；vsix 路径需"卸载→重装→重载窗口"闭环） |
+| Webview 实时预览 AI 写入的草稿 | ✅ |
+| 发布 / 丢弃的 withProgress 进度条 | ✅ |
+| AI 按约定把 `mentions` 写进 frontmatter，发布后服务端将 mention 正确落到 `index/*.yaml` 的 `timeline` 条目 | ✅（参见 §16.3 实测数据） |
+
+### 16.3 @mention 实测数据（自证链路闭环）
+
+验收帖：`新类目/测试提及/001_liuyu_proposal_dd2ccf.md`。实际服务端行为：
+
+- 主帖 md 文件的 frontmatter **只保留** `type` / `author` / `created` / `index_state`——**不写入 mentions**
+- `mentions` 块被服务端 [publish.py](../team-pivot-web/server/publish.py) 中的 `create_thread_index(..., mention=mention_block)` 写入 **index yaml**：
+
+  ```yaml
+  # index/测试提及-discuss.index.yaml 节选
+  timeline:
+  - time: '2026-04-21T13:52:40+08:00'
+    event: liuyu created thread
+    file: discussions/新类目/测试提及/001_liuyu_proposal_dd2ccf.md
+    mention:
+      users:
+      - user: 刘昱
+        open_id: ou_6de589cfddf3f1499f82a9222e5f49aa
+      comments: 请自己确认这条通知是否收到
+  ```
+
+- 因此**"主帖正文不应出现 mentions frontmatter 原文"是正确设计**，不是 bug。插件侧剥掉 frontmatter、服务端按 mention 路由推飞书通知，两侧职责解耦
+
+### 16.4 遗留待办（不阻塞本功能上线）
+
+- **回帖空态文案同步打磨**：回帖草稿卡（[DraftCard.tsx:38](webview/src/components/DraftCard.tsx#L38)）目前仍是原始一句话 "草稿是空的。粘贴提示词到你的 AI 聊天窗口…"。已有文案建议（§16.1 #1 的结构），但本轮未落地；下一次涉及回帖体验迭代时一并改
+- **顶栏两个 refresh 图标视觉混淆**：`pivot.refresh`（`$(refresh)`）与 `pivot.syncMirror`（`$(repo-sync)`）在小图标下难以区分。本轮决定**保持原样**，后续如用户反馈继续增多，可考虑：
+  1. 把 `syncMirror` 挪到命令面板（降低曝光）
+  2. 或换更不像的图标（如 `$(cloud-download)`）
+- **飞书通知送达验证**：仅凭 Pivot 数据已确认 mentions 正确路由；是否真收到飞书卡片取决于飞书 App 权限、bot 成员关系、`.env NOTIFY_ENABLED`，属于运营配置层问题，和新帖功能解耦，不列入本帖验收范围
+- **服务端 pytest 在 Windows + 中文 locale 上的 encoding / git branch 失败**：`test_index_files.py` 的 3 个 UTF-8 YAML 读取用例以及 `test_workspace.py::test_ensure_cloned_supports_empty_remote_without_main_branch` 在 Windows 环境下默认失败，设置 `PYTHONUTF8=1` 解掉三个 Unicode 问题；最后那个 `git pull --rebase origin` 问题与本期新帖功能无关，单独建单处理
+- **vsix 安装路径的开发循环提示**：验收中反复踩到"改完代码没卸载旧 vsix → Extension Host 跑着老代码"的坑。考虑在 README / 后续脚本 `scripts/dev-install.ps1` 里收敛一个 "build → package → reinstall → reload" 的 one-liner，避免新同学重复踩
+
+### 16.5 本轮未做
+
+- ❌ 未 `git push`（由用户手动 push）
+- ❌ 未打新 tag 或动 `package.json` 的 version（本轮仍在 `0.0.2`；如要发版 vsix 可在 push 前 bump 到 `0.0.3`）
+- ❌ 未更新 `memo.md`（§15 的更新点保留；本功能上生产后由同一人一起更）
