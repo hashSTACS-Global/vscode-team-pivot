@@ -51,6 +51,11 @@
         "command": "pivot.discardDraftFromTree",
         "title": "Pivot: Discard Draft",
         "icon": "$(trash)"
+      },
+      {
+        "command": "pivot.newThread",
+        "title": "Pivot: New Thread",
+        "icon": "$(add)"
       }
     ],
     "viewsContainers": {
@@ -73,25 +78,35 @@
     "menus": {
       "view/title": [
         {
+          "command": "pivot.newThread",
+          "when": "view == pivot.threads",
+          "group": "navigation@0"
+        },
+        {
           "command": "pivot.refresh",
           "when": "view == pivot.threads",
-          "group": "navigation"
+          "group": "navigation@1"
         },
         {
           "command": "pivot.openSettings",
           "when": "view == pivot.threads",
-          "group": "navigation"
+          "group": "navigation@2"
         },
         {
           "command": "pivot.syncMirror",
           "when": "view == pivot.threads",
-          "group": "navigation"
+          "group": "navigation@3"
         }
       ],
       "view/item/context": [
         {
           "command": "pivot.discardDraftFromTree",
           "when": "view == pivot.threads && viewItem == pivot-draft",
+          "group": "inline"
+        },
+        {
+          "command": "pivot.discardDraftFromTree",
+          "when": "view == pivot.threads && viewItem == pivot-draft-new-thread",
           "group": "inline"
         }
       ]

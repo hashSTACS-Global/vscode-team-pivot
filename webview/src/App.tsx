@@ -5,6 +5,7 @@ import type {
   SettingsSnapshot,
 } from "../../src/webview/protocol";
 import type { Contact, MentionBlock, ThreadDetail } from "../../src/api/types";
+import { NewThreadComposer } from "./components/NewThreadComposer";
 import { SettingsView } from "./components/SettingsView";
 import { ThreadDetailView } from "./components/ThreadDetail";
 import { vscode } from "./vscode";
@@ -13,6 +14,7 @@ type ViewState =
   | { kind: "idle" }
   | { kind: "loading"; category: string; slug: string }
   | { kind: "detail"; detail: ThreadDetail; draft: DraftSnapshot | undefined }
+  | { kind: "new-thread"; draft: DraftSnapshot }
   | { kind: "error"; message: string };
 
 export function App(): JSX.Element {
@@ -42,6 +44,10 @@ export function App(): JSX.Element {
           setActiveTab("discussion");
           setState({ kind: "detail", detail: msg.detail, draft: msg.draft });
           return;
+        case "show-new-thread-composer":
+          setActiveTab("discussion");
+          setState({ kind: "new-thread", draft: msg.draft });
+          return;
         case "show-error":
           setActiveTab("discussion");
           setState({ kind: "error", message: msg.message });
@@ -57,19 +63,24 @@ export function App(): JSX.Element {
           return;
         case "draft-updated":
           setState((prev) => {
-            if (prev.kind !== "detail" || !prev.draft) return prev;
-            if (prev.draft.id !== msg.draft_id) return prev;
-            return {
-              ...prev,
-              draft: { ...prev.draft, body_md: msg.body_md },
-            };
+            if (prev.kind === "detail" && prev.draft && prev.draft.id === msg.draft_id) {
+              return { ...prev, draft: { ...prev.draft, body_md: msg.body_md } };
+            }
+            if (prev.kind === "new-thread" && prev.draft.id === msg.draft_id) {
+              return { ...prev, draft: { ...prev.draft, body_md: msg.body_md } };
+            }
+            return prev;
           });
           return;
         case "draft-published":
           setState((prev) => {
-            if (prev.kind !== "detail") return prev;
-            if (prev.draft?.id !== msg.draft_id) return prev;
-            return { ...prev, draft: undefined };
+            if (prev.kind === "detail" && prev.draft?.id === msg.draft_id) {
+              return { ...prev, draft: undefined };
+            }
+            if (prev.kind === "new-thread" && prev.draft.id === msg.draft_id) {
+              return { kind: "idle" };
+            }
+            return prev;
           });
           return;
         case "contacts-result":
@@ -146,6 +157,18 @@ export function App(): JSX.Element {
 
   const onDiscardDraft = useCallback((draft_id: string) => {
     vscode().postMessage({ type: "discard-draft", draft_id });
+  }, []);
+
+  const onPublishNewThreadDraft = useCallback((draft_id: string) => {
+    vscode().postMessage({ type: "publish-new-thread-draft", draft_id });
+  }, []);
+
+  const onDiscardNewThreadDraft = useCallback((draft_id: string) => {
+    vscode().postMessage({ type: "discard-new-thread-draft", draft_id });
+  }, []);
+
+  const onRecopyNewThreadPrompt = useCallback((draft_id: string) => {
+    vscode().postMessage({ type: "recopy-new-thread-prompt", draft_id });
   }, []);
 
   const onSaveSettings = useCallback(
@@ -241,6 +264,15 @@ export function App(): JSX.Element {
             onOpenDraftFile={onOpenDraftFile}
             onPublishDraft={onPublishDraft}
             onDiscardDraft={onDiscardDraft}
+            />
+          )}
+          {state.kind === "new-thread" && (
+            <NewThreadComposer
+              draft={state.draft}
+              onOpenFile={() => onOpenDraftFile(state.draft.id)}
+              onPublish={() => onPublishNewThreadDraft(state.draft.id)}
+              onDiscard={() => onDiscardNewThreadDraft(state.draft.id)}
+              onRecopyPrompt={() => onRecopyNewThreadPrompt(state.draft.id)}
             />
           )}
           {state.kind === "error" && (

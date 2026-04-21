@@ -24,6 +24,10 @@ interface LocalDraftMeta {
   slug: string;
   filePath: string;
   updatedAt: number;
+  kind: "reply" | "new-thread";
+  // new-thread 草稿有这两个（从 meta json 读出）
+  title?: string;
+  targetCategory?: string;
 }
 
 type RootSectionKey = "favorites" | "drafts" | "discussions";
@@ -113,6 +117,24 @@ class ThreadNode {
       }
       case "draft": {
         const d = this.data.draft;
+        if (d.kind === "new-thread") {
+          const label = d.title ?? "(未命名新帖)";
+          const item = new vscode.TreeItem(
+            label,
+            vscode.TreeItemCollapsibleState.None,
+          );
+          const cat = d.targetCategory ?? "?";
+          item.description = `新帖草稿 · ${cat} · ${formatRelative(new Date(d.updatedAt).toISOString())}`;
+          item.tooltip = `新帖草稿\n标题: ${label}\n分类: ${cat}\n${d.filePath}`;
+          item.iconPath = new vscode.ThemeIcon("edit");
+          item.command = {
+            command: "pivot.openNewThreadDraft",
+            title: "Open New Thread Draft",
+            arguments: [d.id],
+          };
+          item.contextValue = "pivot-draft-new-thread";
+          return item;
+        }
         const item = new vscode.TreeItem(
           `${d.category}/${d.slug}`,
           vscode.TreeItemCollapsibleState.None,
@@ -418,21 +440,57 @@ async function listLocalDrafts(): Promise<LocalDraftMeta[]> {
     const files = await safeDirents(categoryPath);
     for (const file of files.filter((d) => d.isFile() && d.name.endsWith(".md"))) {
       const filePath = path.join(categoryPath, file.name);
+      const slug = file.name.replace(/\.md$/, "");
       try {
         const stat = await fs.stat(filePath);
-        results.push({
-          id: `${categoryDir.name}/${file.name.replace(/\.md$/, "")}`,
-          category: categoryDir.name,
-          slug: file.name.replace(/\.md$/, ""),
-          filePath,
-          updatedAt: stat.mtimeMs,
-        });
+        const metaPath = path.join(categoryPath, `${slug}.pivot-meta.json`);
+        const meta = await readDraftMeta(metaPath);
+        const id = `${categoryDir.name}/${slug}`;
+        if (meta && meta.kind === "new-thread") {
+          results.push({
+            id,
+            category: categoryDir.name,
+            slug,
+            filePath,
+            updatedAt: stat.mtimeMs,
+            kind: "new-thread",
+            title: meta.title,
+            targetCategory: meta.category,
+          });
+        } else {
+          results.push({
+            id,
+            category: categoryDir.name,
+            slug,
+            filePath,
+            updatedAt: stat.mtimeMs,
+            kind: "reply",
+          });
+        }
       } catch {
         // ignore broken files
       }
     }
   }
   return results.sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+type ReadDraftMeta =
+  | { kind: "new-thread"; title: string; category: string }
+  | { kind: "reply" }
+  | null;
+
+async function readDraftMeta(metaPath: string): Promise<ReadDraftMeta> {
+  try {
+    const raw = await fs.readFile(metaPath, "utf8");
+    const parsed = JSON.parse(raw) as { kind?: string; title?: string; category?: string };
+    if (parsed.kind === "new-thread" && typeof parsed.title === "string" && typeof parsed.category === "string") {
+      return { kind: "new-thread", title: parsed.title, category: parsed.category };
+    }
+    return { kind: "reply" };
+  } catch {
+    return null;
+  }
 }
 
 function draftsRootDir(): string {

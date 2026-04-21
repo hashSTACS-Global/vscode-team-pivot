@@ -1,4 +1,4 @@
-import type { ThreadDetail } from "../api/types";
+import type { Contact, ThreadDetail } from "../api/types";
 
 export function buildReplyPrompt(args: {
   detail: ThreadDetail;
@@ -84,6 +84,90 @@ ${replyToFilename ? `**回复目标帖子**: ${replyToFilename}` : ""}
 - 不要加多余寒暄
 - 用 Markdown 格式
 - 语气专业、直接、清楚
+
+请把草稿写入这个文件（覆盖现有内容即可）：
+
+\`${draftPath}\`
+
+写完后告诉我你已经保存到了这个文件。如果我后续让你修改，请继续编辑同一个文件。`;
+}
+
+export function buildNewThreadPrompt(args: {
+  title: string;
+  category: string;
+  draftPath: string;
+  contacts: Contact[];
+  mirrorDir?: string;
+}): string {
+  const { title, category, draftPath, contacts, mirrorDir } = args;
+
+  const contactsBlock =
+    contacts.length > 0
+      ? `## 可用联系人（如需 @ 某人，请选其 open_id）
+
+${contacts
+  .slice(0, 20)
+  .map(
+    (c) =>
+      `- ${c.name}${c.en_name ? ` (${c.en_name})` : ""} · open_id: \`${c.open_id}\``,
+  )
+  .join("\n")}
+
+`
+      : `## 可用联系人
+
+当前没有可用的联系人信息。如果你打算在新帖里 @ 某人，请让我先补上联系人列表。
+
+`;
+
+  const mirrorBlock = mirrorDir
+    ? `## 本地 mirror（参考同分类的帖子写法）
+
+\`${mirrorDir}/discussions/${category}/\`
+
+如果你不确定这个分类里帖子的风格，可以先读 1–2 篇同分类下的 .md 文件作为参考。不要照抄，保持这次讨论主题自己的独立立场。
+
+`
+    : "";
+
+  return `请帮我在 Pivot 上起草一个**新帖**（不是回复），并直接保存到指定文件。
+
+## 新帖信息
+
+**标题**: ${title}
+**分类**: ${category}
+
+${mirrorBlock}${contactsBlock}## 你的任务
+
+请根据上述标题和分类，生成一版可直接发布的新帖正文草稿。
+
+正文要求：
+
+- 用 Markdown 格式
+- **不要**再写一个 \`# 标题\`（服务端会用标题字段兜底，重复会造成双标题）
+- **不要**包含其他 frontmatter 字段，只在你需要 @ 人时加 \`mentions\` 这一块
+- 语气专业、直接、清楚
+- 结构根据内容需要安排（背景 / 问题 / 方案 / 下一步 等）
+
+## 如果需要 @ 某人
+
+在文件**最顶部**放一段 YAML frontmatter，像这样：
+
+\`\`\`
+---
+mentions:
+  open_ids:
+    - ou_xxxxxxxxxxxx
+    - ou_yyyyyyyyyyyy
+  comments: 这个方案希望你们 review
+---
+\`\`\`
+
+- \`open_ids\` 从上方"可用联系人"里挑
+- \`comments\` 是对被 @ 的人说的一句话（不能空，会推送飞书通知）
+- 如果不需要 @ 人，就**完全不要**写 frontmatter
+
+## 保存位置
 
 请把草稿写入这个文件（覆盖现有内容即可）：
 

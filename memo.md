@@ -79,6 +79,35 @@
 - 动作模板可配置：📋 回复此贴 / 📋 总结此贴 / 📋 翻译此贴 / 📋 针对此贴提问
 - @mention：复制提示词时附上最近活跃联系人 open_id 列表，Claude 填到草稿 frontmatter
 
+### 4.1 核心工作流：AI 协作发新帖（2026-04-21 落地）
+
+与回复链路完全对称，差别只在入口和草稿目录。详细设计见 [new-thread-design.md](new-thread-design.md)。
+
+```
+① 侧边栏标题栏 [＋] 按钮 / 命令面板 `Pivot: New Thread`
+② 依次 showInputBox(title) → QuickPick(category, 含"＋ 新建分类…")
+   → 可选 showInputBox + 二次确认
+③ DraftsManager.ensureNewThreadDraft({title, category})
+   → 落盘 ~/.pivot-drafts/new-threads/{uuid}.md
+          ~/.pivot-drafts/new-threads/{uuid}.pivot-meta.json
+     meta.kind = "new-thread"
+④ buildNewThreadPrompt(...) → env.clipboard.writeText(...)
+   提示词里附最近活跃联系人 open_id 清单，供 AI 选择性填 mentions
+⑤ 打开 Pivot Webview NewThreadComposer，空态显示"✅ 提示词已复制 +
+   下一步（二选一）+ 随时切走"的正向引导（含「重新复制」按钮防剪贴板被覆盖）
+⑥ [外部 AI 写 md] → FileSystemWatcher → Webview 实时预览
+⑦ 点 [✓ 发布]
+   → 读 meta 判 kind="new-thread" → 读 md 剥 frontmatter 拿 mentions
+   → POST /api/threads {category, title, body, mentions?}
+   → mirror.sync + pivot.refresh + 跳转到新帖详情
+   发布 / 丢弃全程走 vscode.window.withProgress 显示阶段性进度条
+```
+
+**关键设计点**：
+- meta 文件的 `kind` 字段区分回帖 / 新帖两种草稿；`DraftsManager.publish` 按 kind 分发到 `replyToThread` / `createThread` 两条 API
+- `GET /api/categories` 接口直接返回现有分类 + 帖子数（非聚合 listThreads），插件侧 QuickPick 强制从列表里选，避免用户手打造成脏分类
+- mentions 不进主帖 md 的 frontmatter——服务端把它写进 `index/*.yaml` 的 timeline 条目（见 [publish.py](../team-pivot-web/server/publish.py) `create_thread_index(..., mention=mention_block)`），以便仅在创建/更新时推送，不污染正文
+
 ## 5. 数据同步策略
 
 **本地镜像永远只读**。插件绝不 commit/push，完全规避与服务端两阶段原子写竞争。
@@ -189,19 +218,23 @@ vscode-team-pivot/
 **做：**
 - 扩展激活 + token 输入 / 保存
 - `git clone` / `pull` 本地镜像
-- TreeView：thread 列表（按 `last_updated` 排序，未读红点）
+- TreeView：thread 列表（按 `last_updated` 排序，未读红点） + 草稿分组（按 kind 区分回帖 / 新帖）
 - Webview：thread 详情（复用 web 的 ThreadDetailPane 风格）
 - "📋 回复此贴" 按钮 → 复制提示词
 - `.pivot-drafts/` FileSystemWatcher → 弹草稿卡片
 - "✓ 发布" → POST reply API
+- **新建 thread**：侧边栏 [＋] / 命令面板 `Pivot: New Thread` → 本地草稿 + AI 协作 + 发布（2026-04-21 上线，详见 §4.1 / [new-thread-design.md](new-thread-design.md)）
 
 **暂缓：**
-- 新建 thread / 状态转移 / @mention 自动补全 UI
+- 状态转移
+- @mention 自动补全 UI[^mentions]
 - 主动 LLM 集成（Chat Participant）
 - 多仓库支持 / 多账号切换
 - 快捷键（j/k 等）
 - 离线队列（网络失败重试）
 - Marketplace 发布
+
+[^mentions]: 新帖 / 回帖的 @mention 当前由 AI 直接在草稿 md 的 frontmatter 里写 `mentions: {open_ids, comments}`，扩展 publish 时读出来塞 API。插件侧不做 QuickPick 选人的 UI，后续如方案 A 体验不佳再加。
 
 ## 9. 与 team-pivot-web 的协议契约
 
@@ -212,6 +245,8 @@ vscode-team-pivot/
 | GET | `/api/threads` | thread 列表 + unread_count |
 | GET | `/api/threads/{key}` | thread 详情 |
 | POST | `/api/threads/{key}/reply` | 发回复 |
+| POST | `/api/threads` | 发新帖（2026-04-21 上线；body: `{category, title, body, mentions?}`）|
+| GET | `/api/categories` | 分类清单 + 每类帖子数 + `last_updated`（供新帖流程的 QuickPick 使用）|
 | GET | `/api/contacts` | 联系人列表（@mention） |
 | GET/POST/PATCH | `/api/drafts` | 草稿 CRUD（可选复用） |
 | GET | `/api/me` | 当前用户 |

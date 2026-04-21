@@ -72,6 +72,22 @@ export interface WorkspaceMirrorInfo {
   head: string | null;
 }
 
+export interface CreateThreadResponse {
+  category: string;
+  slug: string;
+  filename: string;
+}
+
+export interface CategoryEntry {
+  name: string;
+  post_count: number;
+  last_updated: string | null;
+}
+
+export interface ListCategoriesResponse {
+  items: CategoryEntry[];
+}
+
 export interface UpdateSnapshot {
   state:
     | "unknown"
