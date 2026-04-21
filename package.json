@@ -2,7 +2,7 @@
   "name": "vscode-team-pivot",
   "displayName": "Team Pivot",
   "description": "VS Code client for team-pivot-web — browse threads, reply, and collaborate with AI assistants.",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "publisher": "hashSTACS-Global",
   "license": "MIT",
   "repository": {

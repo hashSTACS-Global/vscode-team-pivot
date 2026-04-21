@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "latest": "0.0.2",
+  "latest": "0.0.3",
   "minimum_supported": "0.0.2",
-  "message": "当前插件版本过旧，已经低于最低支持版本。请先升级到 0.0.2，再继续访问公司的 Pivot 数据和功能。",
-  "download_url": "https://github.com/hashSTACS-Global/vscode-team-pivot/releases/download/v0.0.2/vscode-team-pivot-0.0.2.vsix",
-  "published_at": "2026-04-20T00:00:00Z"
+  "message": "该版本带来新帖发布流程与若干 UX 改进。",
+  "download_url": "https://github.com/hashSTACS-Global/vscode-team-pivot/releases/download/v0.0.3/vscode-team-pivot-0.0.3.vsix",
+  "published_at": "2026-04-21T00:00:00Z"
 }
