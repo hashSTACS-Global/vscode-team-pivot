@@ -70,7 +70,7 @@ export class UpdateManager {
       const msg = e instanceof Error ? e.message : String(e);
       return this.setSnapshot({
         state: "check_failed",
-        blocked: true,
+        blocked: false,
         currentVersion,
         message: `无法验证插件版本：${msg}`,
       });
