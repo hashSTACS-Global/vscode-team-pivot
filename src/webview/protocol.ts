@@ -1,5 +1,13 @@
 import type { Contact, MentionBlock, ThreadDetail, UpdateSnapshot } from "../api/types";
 
+/**
+ * 插件内部使用的 mentions 结构：API 契约仍是 `MentionBlock`（open_ids + comments），
+ * 这里额外带一个 `names` 映射仅为本地 UI 编辑时回填显示，发布到服务端前会被剥掉。
+ */
+export interface DraftMentions extends MentionBlock {
+  names?: Record<string, string>; // open_id -> display name
+}
+
 export interface DraftSnapshot {
   id: string;
   thread_key: string;
@@ -12,6 +20,8 @@ export interface DraftSnapshot {
   // 仅 new-thread 草稿使用
   title?: string;
   category?: string;
+  /** 新帖草稿 UI 选中的提及；publish 时优先覆盖 md frontmatter 里的 mentions */
+  mentions?: DraftMentions | null;
 }
 
 export interface SettingsSnapshot {
@@ -61,4 +71,5 @@ export type WebviewToExtension =
   | { type: "discard-draft"; draft_id: string }
   | { type: "publish-new-thread-draft"; draft_id: string }
   | { type: "discard-new-thread-draft"; draft_id: string }
-  | { type: "recopy-new-thread-prompt"; draft_id: string };
+  | { type: "recopy-new-thread-prompt"; draft_id: string }
+  | { type: "update-new-thread-mentions"; draft_id: string; mentions: DraftMentions | null };

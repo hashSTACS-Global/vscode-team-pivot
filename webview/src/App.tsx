@@ -5,6 +5,7 @@ import type {
   SettingsSnapshot,
 } from "../../src/webview/protocol";
 import type { Contact, MentionBlock, ThreadDetail } from "../../src/api/types";
+import type { DraftMentions } from "../../src/webview/protocol";
 import { NewThreadComposer } from "./components/NewThreadComposer";
 import { SettingsView } from "./components/SettingsView";
 import { ThreadDetailView } from "./components/ThreadDetail";
@@ -23,7 +24,7 @@ export function App(): JSX.Element {
   const [settings, setSettings] = useState<SettingsSnapshot | null>(null);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [contactResults, setContactResults] = useState<Record<string, Contact[]>>({});
-  const [lastMentionSubmitted, setLastMentionSubmitted] = useState<string | null>(null);
+  const [mentionEvent, setMentionEvent] = useState<{ target: string; version: number } | null>(null);
 
   useEffect(() => {
     const listener = (ev: MessageEvent<ExtensionToWebview>) => {
@@ -87,7 +88,10 @@ export function App(): JSX.Element {
           setContactResults((prev) => ({ ...prev, [msg.target_filename]: msg.items }));
           return;
         case "mention-submitted":
-          setLastMentionSubmitted(msg.target_filename);
+          setMentionEvent((prev) => ({
+            target: msg.target_filename,
+            version: (prev?.version ?? 0) + 1,
+          }));
           return;
       }
     };
@@ -135,7 +139,6 @@ export function App(): JSX.Element {
   const onSubmitMention = useCallback(
     (target_filename: string, mentions: MentionBlock) => {
       if (state.kind !== "detail") return;
-      setLastMentionSubmitted(null);
       vscode().postMessage({
         type: "submit-mention",
         category: state.detail.meta.category,
@@ -170,6 +173,17 @@ export function App(): JSX.Element {
   const onRecopyNewThreadPrompt = useCallback((draft_id: string) => {
     vscode().postMessage({ type: "recopy-new-thread-prompt", draft_id });
   }, []);
+
+  const onSaveNewThreadMentions = useCallback(
+    (draft_id: string, mentions: DraftMentions | null) => {
+      vscode().postMessage({
+        type: "update-new-thread-mentions",
+        draft_id,
+        mentions,
+      });
+    },
+    [],
+  );
 
   const onSaveSettings = useCallback(
     (next: Partial<Omit<SettingsSnapshot, "tokenConfigured">>) => {
@@ -260,7 +274,7 @@ export function App(): JSX.Element {
             onSearchContacts={onSearchContacts}
             onSubmitMention={onSubmitMention}
             contactResults={contactResults}
-            lastMentionSubmitted={lastMentionSubmitted}
+            mentionEvent={mentionEvent}
             onOpenDraftFile={onOpenDraftFile}
             onPublishDraft={onPublishDraft}
             onDiscardDraft={onDiscardDraft}
@@ -269,10 +283,14 @@ export function App(): JSX.Element {
           {state.kind === "new-thread" && (
             <NewThreadComposer
               draft={state.draft}
+              contacts={contactResults[state.draft.id] ?? []}
+              mentionEvent={mentionEvent}
               onOpenFile={() => onOpenDraftFile(state.draft.id)}
               onPublish={() => onPublishNewThreadDraft(state.draft.id)}
               onDiscard={() => onDiscardNewThreadDraft(state.draft.id)}
               onRecopyPrompt={() => onRecopyNewThreadPrompt(state.draft.id)}
+              onSearchContacts={onSearchContacts}
+              onSaveMentions={onSaveNewThreadMentions}
             />
           )}
           {state.kind === "error" && (

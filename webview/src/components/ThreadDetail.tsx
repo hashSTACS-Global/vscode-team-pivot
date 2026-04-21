@@ -10,6 +10,7 @@ import type {
 import type { DraftSnapshot } from "../../../src/webview/protocol";
 import { StatusBadge } from "./StatusBadge";
 import { DraftCard } from "./DraftCard";
+import { MentionComposer } from "./MentionComposer";
 
 const COLLAPSE_HEIGHT = 208;
 const REPLY_LAST = "__last__";
@@ -23,7 +24,7 @@ interface Props {
   onSearchContacts: (target_filename: string, query: string) => void;
   onSubmitMention: (target_filename: string, mentions: MentionBlock) => void;
   contactResults: Record<string, Contact[]>;
-  lastMentionSubmitted: string | null;
+  mentionEvent: { target: string; version: number } | null;
   onOpenDraftFile: (draftId: string) => void;
   onPublishDraft: (draftId: string) => void;
   onDiscardDraft: (draftId: string) => void;
@@ -38,7 +39,7 @@ export function ThreadDetailView({
   onSearchContacts,
   onSubmitMention,
   contactResults,
-  lastMentionSubmitted,
+  mentionEvent,
   onOpenDraftFile,
   onPublishDraft,
   onDiscardDraft,
@@ -105,11 +106,12 @@ export function ThreadDetailView({
               )}
               {activeMentionTarget === p.filename && (
                 <MentionComposer
-                  targetFilename={p.filename}
+                  targetId={p.filename}
                   contacts={contactResults[p.filename] ?? []}
-                  lastSubmittedTarget={lastMentionSubmitted}
+                  mentionEvent={mentionEvent}
+                  submitLabel="发送提及"
                   onSearchContacts={onSearchContacts}
-                  onSubmitMention={onSubmitMention}
+                  onSubmit={onSubmitMention}
                   onClose={() => setActiveMentionTarget(null)}
                 />
               )}
@@ -164,123 +166,6 @@ function InlineReplyPanel({
           onDiscard={() => onDiscardDraft(draft.id)}
         />
       ) : null}
-    </div>
-  );
-}
-
-function MentionComposer({
-  targetFilename,
-  contacts,
-  lastSubmittedTarget,
-  onSearchContacts,
-  onSubmitMention,
-  onClose,
-}: {
-  targetFilename: string;
-  contacts: Contact[];
-  lastSubmittedTarget: string | null;
-  onSearchContacts: (target_filename: string, query: string) => void;
-  onSubmitMention: (target_filename: string, mentions: MentionBlock) => void;
-  onClose: () => void;
-}): JSX.Element {
-  const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<Contact[]>([]);
-  const [comments, setComments] = useState("");
-
-  useEffect(() => {
-    const trimmed = query.trim();
-    const timer = setTimeout(() => {
-      onSearchContacts(targetFilename, trimmed);
-    }, 200);
-    return () => clearTimeout(timer);
-  }, [query, targetFilename, onSearchContacts]);
-
-  useEffect(() => {
-    if (lastSubmittedTarget !== targetFilename) return;
-    setQuery("");
-    setSelected([]);
-    setComments("");
-    onClose();
-  }, [lastSubmittedTarget, onClose, targetFilename]);
-
-  const selectedIds = useMemo(() => new Set(selected.map((c) => c.open_id)), [selected]);
-  const availableContacts = useMemo(
-    () => contacts.filter((contact) => !selectedIds.has(contact.open_id)),
-    [contacts, selectedIds],
-  );
-
-  return (
-    <div className="mention-panel">
-      <div className="mention-header">
-        <span>@ 提及相关的人</span>
-        <button type="button" className="ghost-link" onClick={onClose}>
-          关闭
-        </button>
-      </div>
-      <input
-        className="mention-input"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="搜索联系人"
-      />
-      {selected.length > 0 && (
-        <div className="mention-selected">
-          {selected.map((contact) => (
-            <span key={contact.open_id} className="mention-chip">
-              <span>{contact.name}</span>
-              <button
-                type="button"
-                className="mention-chip-remove"
-                aria-label={`移除 ${contact.name}`}
-                onClick={() =>
-                  setSelected((prev) => prev.filter((c) => c.open_id !== contact.open_id))
-                }
-              >
-                ×
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-      {availableContacts.length > 0 && (
-        <div className="mention-results">
-          {availableContacts.map((contact) => (
-            <button
-              key={contact.open_id}
-              type="button"
-              className="mention-result"
-              onClick={() => {
-                setSelected((prev) =>
-                  prev.some((c) => c.open_id === contact.open_id) ? prev : [...prev, contact],
-                );
-              }}
-            >
-              {contact.name}
-            </button>
-          ))}
-        </div>
-      )}
-      <textarea
-        className="mention-textarea"
-        value={comments}
-        onChange={(e) => setComments(e.target.value)}
-        placeholder="写一句你想补充的话"
-      />
-      <div className="mention-actions">
-        <button
-          type="button"
-          className="primary"
-          disabled={selected.length === 0 || comments.trim().length === 0}
-          onClick={() =>
-            onSubmitMention(targetFilename, {
-              open_ids: selected.map((c) => c.open_id),
-              comments: comments.trim(),
-            })
-          }
-        >
-          发送提及
-        </button>
-      </div>
     </div>
   );
 }

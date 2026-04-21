@@ -541,6 +541,18 @@ button.ready-button:hover:not(:disabled) {
 .draft-empty li:last-child {
   margin-bottom: 0;
 }
+.new-thread-mention-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0;
+  padding: 8px 12px;
+  background: var(--vscode-textBlockQuote-background, rgba(127, 127, 127, 0.1));
+  border-left: 3px solid var(--pivot-accent, var(--vscode-textLink-foreground));
+  border-radius: 4px;
+  font-size: 12px;
+}
 .draft-file-row {
   margin-bottom: 10px;
 }

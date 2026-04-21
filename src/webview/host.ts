@@ -15,6 +15,7 @@ import { GitMirror } from "../git/mirror";
 import { UpdateManager } from "../update/manager";
 import type { ThreadTreeProvider } from "../views/threadTree";
 import type {
+  DraftMentions,
   DraftSnapshot,
   ExtensionToWebview,
   SettingsSnapshot,
@@ -190,6 +191,9 @@ export class WebviewHost {
         return;
       case "recopy-new-thread-prompt":
         await this.recopyNewThreadPrompt(msg.draft_id);
+        return;
+      case "update-new-thread-mentions":
+        await this.updateNewThreadMentions(msg.draft_id, msg.mentions);
         return;
     }
   }
@@ -398,8 +402,19 @@ export class WebviewHost {
     mentions: { open_ids: string[]; comments: string },
   ): Promise<void> {
     try {
-      await this.api.addMention(category, slug, targetFilename, mentions);
-      if (this.pending) await this.loadPending();
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: "Pivot: 正在发送提及…",
+          cancellable: false,
+        },
+        async (progress) => {
+          progress.report({ message: "发送到服务端…" });
+          await this.api.addMention(category, slug, targetFilename, mentions);
+          progress.report({ message: "刷新帖子详情…" });
+          if (this.pending) await this.loadPending();
+        },
+      );
       this.post({ type: "mention-submitted", target_filename: targetFilename });
       void vscode.window.showInformationMessage("Pivot: mention sent.");
     } catch (e) {
@@ -681,6 +696,38 @@ export class WebviewHost {
     } catch (e) {
       void vscode.window.showErrorMessage(
         `Pivot: publish failed — ${this.describe(e)}`,
+      );
+    }
+  }
+
+  /**
+   * 把 UI 选择的 mentions 存到新帖草稿 meta；发布时作为 createThread body 一并提交。
+   * 传 null / 空 open_ids 表示清空。
+   */
+  private async updateNewThreadMentions(
+    draftId: string,
+    mentions: DraftMentions | null,
+  ): Promise<void> {
+    try {
+      await this.drafts.updateNewThreadMentions(draftId, mentions);
+      // 回发 mention-submitted 以触发 MentionComposer 关闭 + 清状态
+      this.post({ type: "mention-submitted", target_filename: draftId });
+      // 同时用最新 meta 重新投递 composer，让 NewThreadComposer 展示新的"已保存提及"摘要
+      const fresh = await this.drafts.getNewThreadDraftById(draftId);
+      if (fresh) {
+        this.currentDraft = fresh;
+        this.post({ type: "show-new-thread-composer", draft: fresh });
+      }
+      if (mentions && mentions.open_ids.length > 0) {
+        void vscode.window.showInformationMessage(
+          `Pivot: 已保存 ${mentions.open_ids.length} 位 @ 提及，发布时一并发送。`,
+        );
+      } else {
+        void vscode.window.showInformationMessage("Pivot: 已清除 @ 提及。");
+      }
+    } catch (e) {
+      void vscode.window.showErrorMessage(
+        `Pivot: 保存 @ 提及失败 — ${this.describe(e)}`,
       );
     }
   }

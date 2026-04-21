@@ -1,27 +1,41 @@
-import React from "react";
+import React, { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { DraftSnapshot } from "../../../src/webview/protocol";
+import type { Contact } from "../../../src/api/types";
+import type { DraftMentions, DraftSnapshot } from "../../../src/webview/protocol";
+import { MentionComposer } from "./MentionComposer";
 
 interface Props {
   draft: DraftSnapshot;
+  contacts: Contact[];
+  mentionEvent: { target: string; version: number } | null;
   onOpenFile: () => void;
   onPublish: () => void;
   onDiscard: () => void;
   onRecopyPrompt: () => void;
+  onSearchContacts: (targetId: string, query: string) => void;
+  onSaveMentions: (targetId: string, mentions: DraftMentions | null) => void;
 }
 
 export function NewThreadComposer({
   draft,
+  contacts,
+  mentionEvent,
   onOpenFile,
   onPublish,
   onDiscard,
   onRecopyPrompt,
+  onSearchContacts,
+  onSaveMentions,
 }: Props): JSX.Element {
   const body = draft.body_md.trim();
   const hasBody = body.length > 0;
   const title = draft.title ?? "(未命名新帖)";
   const category = draft.category ?? "?";
+  const savedMentions = draft.mentions ?? null;
+  const hasMentions = !!savedMentions && savedMentions.open_ids.length > 0;
+
+  const [mentionOpen, setMentionOpen] = useState(false);
 
   return (
     <section className="new-thread-composer">
@@ -74,12 +88,42 @@ export function NewThreadComposer({
             </p>
           </div>
         )}
+
+        {hasMentions && !mentionOpen && (
+          <div className="new-thread-mention-summary">
+            <span className="muted">已保存 @ 提及：</span>
+            <span>{savedMentions!.open_ids.length} 人 · {savedMentions!.comments}</span>
+            <button
+              type="button"
+              className="ghost-link"
+              onClick={() => setMentionOpen(true)}
+            >
+              编辑
+            </button>
+            <button
+              type="button"
+              className="ghost-link"
+              onClick={() => onSaveMentions(draft.id, null)}
+            >
+              清除
+            </button>
+          </div>
+        )}
+
         <div className="draft-file-row">
           <button type="button" className="draft-file-link" onClick={onOpenFile}>
             在 VS Code 中打开草稿文件
           </button>
         </div>
+
         <footer className="draft-actions">
+          <button
+            type="button"
+            onClick={() => setMentionOpen((prev) => !prev)}
+            title="选人并附一句话，发布时随新帖一起发送"
+          >
+            @ 提及{hasMentions ? `（${savedMentions!.open_ids.length}）` : ""}
+          </button>
           <button
             type="button"
             className="primary"
@@ -92,6 +136,28 @@ export function NewThreadComposer({
             丢弃
           </button>
         </footer>
+
+        {mentionOpen && (
+          <MentionComposer
+            targetId={draft.id}
+            contacts={contacts}
+            mentionEvent={mentionEvent}
+            initial={savedMentions}
+            submitLabel="保存提及"
+            onSearchContacts={onSearchContacts}
+            onSubmit={(targetId, mentions, selected) => {
+              const names: Record<string, string> = {};
+              for (const c of selected) {
+                if (c.name && c.name !== c.open_id) names[c.open_id] = c.name;
+              }
+              onSaveMentions(targetId, {
+                ...mentions,
+                ...(Object.keys(names).length > 0 ? { names } : {}),
+              });
+            }}
+            onClose={() => setMentionOpen(false)}
+          />
+        )}
       </section>
     </section>
   );

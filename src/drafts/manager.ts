@@ -6,7 +6,7 @@ import * as path from "node:path";
 import { parse as parseYaml } from "yaml";
 import type { ApiClient } from "../api/client";
 import type { MentionBlock, ThreadDetail } from "../api/types";
-import type { DraftSnapshot } from "../webview/protocol";
+import type { DraftMentions, DraftSnapshot } from "../webview/protocol";
 
 export interface ReplyDraftContext {
   draft: DraftSnapshot;
@@ -35,6 +35,7 @@ type DraftMetaFile =
       kind: "new-thread";
       title: string;
       category: string;
+      mentions?: DraftMentions | null;
     };
 
 const NEW_THREAD_DIR = "new-threads";
@@ -173,6 +174,7 @@ export class DraftsManager {
         kind: "new-thread",
         title: meta.title,
         category: meta.category,
+        mentions: meta.mentions ?? null,
       };
     }
     return undefined;
@@ -237,7 +239,39 @@ export class DraftsManager {
       kind: "new-thread",
       title: meta.title,
       category: meta.category,
+      mentions: meta.mentions ?? null,
     };
+  }
+
+  /**
+   * 更新新帖草稿的 UI 选择的 mentions。
+   * - 传 null / 空 open_ids → 清空
+   * - 传有效 mentions → 写入 meta.mentions
+   * publish 时 meta.mentions 优先于 md frontmatter 里的 mentions。
+   */
+  async updateNewThreadMentions(
+    draftId: string,
+    mentions: DraftMentions | null,
+  ): Promise<void> {
+    if (!draftId.startsWith(`${NEW_THREAD_DIR}/`)) {
+      throw new Error(`not a new-thread draft: ${draftId}`);
+    }
+    const meta = await this.readMetaForDraftId(draftId);
+    if (meta.kind !== "new-thread") {
+      throw new Error(`draft meta is not new-thread: ${draftId}`);
+    }
+    const normalized = normalizeMentions(mentions);
+    const next = {
+      kind: "new-thread" as const,
+      title: meta.title,
+      category: meta.category,
+      mentions: normalized,
+    };
+    await fs.writeFile(
+      this.metaFilePathForDraftId(draftId),
+      JSON.stringify(next, null, 2),
+      "utf8",
+    );
   }
 
   // -------- Publish / discard --------
@@ -266,7 +300,16 @@ export class DraftsManager {
     const raw = await fs.readFile(filePath, "utf8");
     const meta = await this.readMetaForDraftId(draftId);
     const { body, frontmatter } = splitFrontmatter(raw);
-    const mentions = extractMentions(frontmatter);
+    const frontmatterMentions = extractMentions(frontmatter);
+    // meta.mentions（UI 选择）优先于 md frontmatter（AI 填写）
+    const mentionsRaw =
+      meta.kind === "new-thread" && meta.mentions
+        ? meta.mentions
+        : frontmatterMentions;
+    // 发给服务端前剥掉 UI 用的 names 字段，只保留 API 契约里的 open_ids+comments
+    const mentions: MentionBlock | null = mentionsRaw
+      ? { open_ids: mentionsRaw.open_ids, comments: mentionsRaw.comments }
+      : null;
 
     if (meta.kind === "new-thread") {
       const res = await this.api.createThread({
@@ -359,7 +402,12 @@ export class DraftsManager {
       if (parsed && (parsed as { kind?: string }).kind === "new-thread") {
         const nt = parsed as Extract<DraftMetaFile, { kind: "new-thread" }>;
         if (typeof nt.title === "string" && typeof nt.category === "string") {
-          return { kind: "new-thread", title: nt.title, category: nt.category };
+          return {
+            kind: "new-thread",
+            title: nt.title,
+            category: nt.category,
+            mentions: normalizeMentions(nt.mentions ?? null),
+          };
         }
       }
       const rp = parsed as Extract<DraftMetaFile, { kind?: "reply" }>;
@@ -406,7 +454,24 @@ export class DraftsManager {
 
 type NormalizedMeta =
   | { kind: "reply"; reply_to: string | null; references: string[] }
-  | { kind: "new-thread"; title: string; category: string };
+  | { kind: "new-thread"; title: string; category: string; mentions: DraftMentions | null };
+
+function normalizeMentions(m: DraftMentions | null | undefined): DraftMentions | null {
+  if (!m) return null;
+  const ids = Array.isArray(m.open_ids) ? m.open_ids.filter((v): v is string => typeof v === "string") : [];
+  const comments = typeof m.comments === "string" ? m.comments.trim() : "";
+  if (ids.length === 0 || comments.length === 0) return null;
+  const result: DraftMentions = { open_ids: ids, comments };
+  if (m.names && typeof m.names === "object") {
+    const names: Record<string, string> = {};
+    for (const id of ids) {
+      const n = (m.names as Record<string, unknown>)[id];
+      if (typeof n === "string" && n.length > 0) names[id] = n;
+    }
+    if (Object.keys(names).length > 0) result.names = names;
+  }
+  return result;
+}
 
 // ---- Frontmatter helpers (exported for unit-level usage if needed) ----
 
