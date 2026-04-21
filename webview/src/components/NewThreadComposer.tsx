@@ -8,6 +8,7 @@ interface Props {
   onOpenFile: () => void;
   onPublish: () => void;
   onDiscard: () => void;
+  onRecopyPrompt: () => void;
 }
 
 export function NewThreadComposer({
@@ -15,6 +16,7 @@ export function NewThreadComposer({
   onOpenFile,
   onPublish,
   onDiscard,
+  onRecopyPrompt,
 }: Props): JSX.Element {
   const body = draft.body_md.trim();
   const hasBody = body.length > 0;
@@ -46,7 +48,30 @@ export function NewThreadComposer({
           </div>
         ) : (
           <div className="draft-empty muted">
-            草稿是空的。粘贴刚才复制的提示词到你的 AI 聊天窗口（Claude Code / Copilot 等），让它把正文写入上面这个文件；或者直接在 VS Code 里打开文件手写。
+            <p>
+              ✅ 给 AI 的提示词已经自动复制到您的剪贴板了。
+              {"  "}
+              <button
+                type="button"
+                className="draft-file-link"
+                onClick={onRecopyPrompt}
+                title="如果剪贴板被其他内容覆盖了，点这里重新复制"
+              >
+                重新复制
+              </button>
+            </p>
+            <p><strong>下一步（二选一）</strong>：</p>
+            <ul>
+              <li>
+                切到 Claude Code / Copilot / Cursor 等 AI 聊天面板，粘贴（Ctrl+V）回车，让 AI 把正文写进上面这个文件
+              </li>
+              <li>
+                或点下方「在 VS Code 中打开草稿文件」，自己手写
+              </li>
+            </ul>
+            <p>
+              写完后 Webview 会自动预览，点 ✓ 发布；或随时切走，从侧边栏「草稿」打开即可。
+            </p>
           </div>
         )}
         <div className="draft-file-row">

@@ -60,4 +60,5 @@ export type WebviewToExtension =
   | { type: "publish-draft"; draft_id: string }
   | { type: "discard-draft"; draft_id: string }
   | { type: "publish-new-thread-draft"; draft_id: string }
-  | { type: "discard-new-thread-draft"; draft_id: string };
+  | { type: "discard-new-thread-draft"; draft_id: string }
+  | { type: "recopy-new-thread-prompt"; draft_id: string };

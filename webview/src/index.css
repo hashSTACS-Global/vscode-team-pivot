@@ -518,12 +518,28 @@ button.ready-button:hover:not(:disabled) {
   overflow-y: auto;
 }
 .draft-empty {
-  padding: 20px 12px;
-  text-align: center;
+  padding: 14px 16px;
   font-size: 12px;
+  line-height: 1.6;
   background: var(--vscode-editor-background);
   border-radius: 4px;
   margin-bottom: 10px;
+}
+.draft-empty p {
+  margin: 0 0 8px;
+}
+.draft-empty p:last-child {
+  margin-bottom: 0;
+}
+.draft-empty ul {
+  margin: 4px 0 10px;
+  padding-left: 20px;
+}
+.draft-empty li {
+  margin-bottom: 4px;
+}
+.draft-empty li:last-child {
+  margin-bottom: 0;
 }
 .draft-file-row {
   margin-bottom: 10px;

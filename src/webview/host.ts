@@ -188,6 +188,9 @@ export class WebviewHost {
       case "discard-new-thread-draft":
         await this.discardNewThreadDraft(msg.draft_id);
         return;
+      case "recopy-new-thread-prompt":
+        await this.recopyNewThreadPrompt(msg.draft_id);
+        return;
     }
   }
 
@@ -412,10 +415,21 @@ export class WebviewHost {
       return;
     }
     try {
-      await this.drafts.publish(this.currentDetail, draftId);
-      await this.mirror.sync().catch(() => undefined);
-      if (this.pending) await this.loadPending();
-      await vscode.commands.executeCommand("pivot.refresh");
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: "Pivot: 正在发布回复…",
+          cancellable: false,
+        },
+        async (progress) => {
+          progress.report({ message: "发布到服务端…" });
+          await this.drafts.publish(this.currentDetail!, draftId);
+          progress.report({ message: "同步本地镜像…" });
+          await this.mirror.sync().catch(() => undefined);
+          if (this.pending) await this.loadPending();
+          await vscode.commands.executeCommand("pivot.refresh");
+        },
+      );
       void vscode.window.showInformationMessage("Pivot: reply published.");
     } catch (e) {
       void vscode.window.showErrorMessage(
@@ -532,6 +546,8 @@ export class WebviewHost {
         this.post({ type: "show-new-thread-composer", draft: ctx.draft });
       }
 
+      void vscode.commands.executeCommand("pivot.refresh");
+
       void vscode.window.showInformationMessage(
         "Pivot: 新帖草稿已就绪，提示词已复制到剪贴板。把它粘贴给 Claude Code / Copilot，让它把正文写进草稿文件，完成后在右侧面板点 ✓ 发布。",
       );
@@ -633,7 +649,23 @@ export class WebviewHost {
 
   private async publishNewThreadDraft(draftId: string): Promise<void> {
     try {
-      const result = await this.drafts.publish(null, draftId);
+      const result = await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: "Pivot: 正在发布新帖…",
+          cancellable: false,
+        },
+        async (progress) => {
+          progress.report({ message: "发布到服务端…" });
+          const r = await this.drafts.publish(null, draftId);
+          if (r.kind === "new-thread") {
+            progress.report({ message: "同步本地镜像…" });
+            await this.mirror.sync().catch(() => undefined);
+            await vscode.commands.executeCommand("pivot.refresh");
+          }
+          return r;
+        },
+      );
       if (result.kind !== "new-thread") {
         // 防御：meta 被破坏或传错 draftId
         void vscode.window.showWarningMessage(
@@ -642,8 +674,6 @@ export class WebviewHost {
         return;
       }
       this.currentDraft = undefined;
-      await this.mirror.sync().catch(() => undefined);
-      await vscode.commands.executeCommand("pivot.refresh");
       this.showThread(result.category, result.slug);
       void vscode.window.showInformationMessage(
         `Pivot: thread published at ${result.category}/${result.slug}.`,
@@ -651,6 +681,40 @@ export class WebviewHost {
     } catch (e) {
       void vscode.window.showErrorMessage(
         `Pivot: publish failed — ${this.describe(e)}`,
+      );
+    }
+  }
+
+  private async recopyNewThreadPrompt(draftId: string): Promise<void> {
+    try {
+      const draft = await this.drafts.getNewThreadDraftById(draftId);
+      if (!draft || draft.kind !== "new-thread" || !draft.title || !draft.category) {
+        void vscode.window.showWarningMessage(
+          "Pivot: 草稿不存在或已损坏，无法重新生成提示词。",
+        );
+        return;
+      }
+      let contacts: Contact[] = [];
+      try {
+        const list = await this.api.listContacts();
+        contacts = list.items;
+      } catch {
+        // listContacts failure does not block copy
+      }
+      const prompt = buildNewThreadPrompt({
+        title: draft.title,
+        category: draft.category,
+        draftPath: draft.file_path,
+        contacts,
+        mirrorDir: this.mirror.currentRepoPath() ?? undefined,
+      });
+      await vscode.env.clipboard.writeText(prompt);
+      void vscode.window.showInformationMessage(
+        "Pivot: 提示词已重新复制到剪贴板。",
+      );
+    } catch (e) {
+      void vscode.window.showErrorMessage(
+        `Pivot: 重新复制提示词失败 — ${this.describe(e)}`,
       );
     }
   }
@@ -663,12 +727,23 @@ export class WebviewHost {
     );
     if (choice !== "丢弃") return;
     try {
-      await this.drafts.discard(draftId);
-      if (this.currentDraft?.id === draftId) {
-        this.currentDraft = undefined;
-      }
-      this.post({ type: "show-idle" });
-      await vscode.commands.executeCommand("pivot.refresh");
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: "Pivot: 正在丢弃草稿…",
+          cancellable: false,
+        },
+        async (progress) => {
+          progress.report({ message: "删除本地草稿文件…" });
+          await this.drafts.discard(draftId);
+          if (this.currentDraft?.id === draftId) {
+            this.currentDraft = undefined;
+          }
+          this.post({ type: "show-idle" });
+          progress.report({ message: "同步本地镜像…" });
+          await vscode.commands.executeCommand("pivot.refresh");
+        },
+      );
       void vscode.window.showInformationMessage("Pivot: draft discarded.");
     } catch (e) {
       void vscode.window.showErrorMessage(

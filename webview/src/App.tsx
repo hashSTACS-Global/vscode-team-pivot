@@ -167,6 +167,10 @@ export function App(): JSX.Element {
     vscode().postMessage({ type: "discard-new-thread-draft", draft_id });
   }, []);
 
+  const onRecopyNewThreadPrompt = useCallback((draft_id: string) => {
+    vscode().postMessage({ type: "recopy-new-thread-prompt", draft_id });
+  }, []);
+
   const onSaveSettings = useCallback(
     (next: Partial<Omit<SettingsSnapshot, "tokenConfigured">>) => {
       vscode().postMessage({ type: "save-settings", settings: next });
@@ -268,6 +272,7 @@ export function App(): JSX.Element {
               onOpenFile={() => onOpenDraftFile(state.draft.id)}
               onPublish={() => onPublishNewThreadDraft(state.draft.id)}
               onDiscard={() => onDiscardNewThreadDraft(state.draft.id)}
+              onRecopyPrompt={() => onRecopyNewThreadPrompt(state.draft.id)}
             />
           )}
           {state.kind === "error" && (
